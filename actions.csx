@@ -5,13 +5,13 @@
 
 #nullable enable
 
+using static SimpleExec.Command;
+
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using AngleSharp;
 using AngleSharp.Dom;
 using AngleSharp.Js;
-
-using static SimpleExec.Command;
 
 return await InvokeCommandAsync(Args.ToArray());
 
