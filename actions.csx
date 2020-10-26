@@ -1,11 +1,10 @@
 #r "nuget: System.CommandLine, 2.0.0-beta1.20371.2"
-#r "nuget: SimpleExec, 6.2.0"
 #r "nuget: AngleSharp, 0.14.0"
 #r "nuget: AngleSharp.Js, 0.14.0"
 
-#nullable enable
+#load "../Actions.Shared/git.csx"
 
-using static SimpleExec.Command;
+#nullable enable
 
 using System.CommandLine;
 using System.CommandLine.Invocation;
@@ -41,12 +40,12 @@ private async Task<int> InvokeCommandAsync(string[] args)
 
             var workingDirectory = Path.GetDirectoryName(LocationsFilePath)!;
 
-            await GitConfigUserAsync(workingDirectory, "GitHub Actions", "actions@users.noreply.github.com");
+            await Git.ConfigUserAsync(workingDirectory, "GitHub Actions", "actions@users.noreply.github.com");
 
-            if (!await GitCommitAsync(workingDirectory, "update {files}", Path.GetFileName(LocationsFilePath)))
+            if (!await Git.CommitAsync(workingDirectory, "update {files}", Path.GetFileName(LocationsFilePath)))
                 return;
 
-            await GitPushAsync(workingDirectory);
+            await Git.PushAsync(workingDirectory);
         })
     };
 
@@ -92,34 +91,4 @@ private async Task<string?> RequestLocationsJsonAsync()
     }
 
     return null;
-}
-
-private async Task GitConfigUserAsync(string workingDirectory, string name, string email)
-{
-    await RunAsync("git", $"config user.name \"{name}\"", workingDirectory: workingDirectory);
-    await RunAsync("git", $"config user.email \"{email}\"", workingDirectory: workingDirectory);
-}
-
-private async Task<bool> GitCommitAsync(string workingDirectory, string message, params string[] files)
-{
-    var gitStatus = await ReadAsync("git", $"status --short --untracked-files", workingDirectory: workingDirectory);
-
-    var changedFiles = files.Where(f => gitStatus.Contains(f)).ToArray();
-
-    if (changedFiles.Length <= 0)
-        return false;
-
-    var changedFilesJoin = $"\"{string.Join("\" \"", changedFiles)}\"";
-
-    await RunAsync("git", $"add {changedFilesJoin}", workingDirectory: workingDirectory);
-
-    var gitCommitMessage = message.Replace($"{{{nameof(files)}}}", changedFilesJoin.Replace("\"", "'"));
-    await RunAsync("git", $"commit -m \"{gitCommitMessage}\"", workingDirectory: workingDirectory);
-
-    return true;
-}
-
-private async Task GitPushAsync(string workingDirectory)
-{
-    await RunAsync("git", "push --quiet --progress", workingDirectory: workingDirectory);
 }
