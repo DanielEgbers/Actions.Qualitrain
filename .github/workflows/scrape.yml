@@ -32,6 +32,8 @@ jobs:
         dotnet tool update --global dotnet-script
         dotnet script --info
     - name: prepare
+      env:
+        DATA_REPO: ${{ secrets.DATA_REPO }}
       run: |-
         dotnet script --debug scripts/actions.csx -- --help
     - name: scrape

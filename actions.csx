@@ -33,6 +33,8 @@ private async Task<int> InvokeCommandAsync(string[] args)
             ClearLocationsByCity(dataPath);
 
             SaveLocationsByCity(dataPath, locationsJson);
+
+            GenerateSummary(Path.Combine(dataPath, "#Qualitrain.md"));
         })
     };
 
@@ -120,5 +122,18 @@ private void SaveLocationsByCity(string path, string locationsJson)
         var fileName = $"{locations.Key}.json";
         
         File.WriteAllText(Path.Combine(path, fileName), JsonConvert.SerializeObject(locations.Value, Formatting.Indented));
+    }
+}
+
+private void GenerateSummary(string path)
+{
+    var match = Regex.Match(Environment.GetEnvironmentVariable("DATA_REPO") ?? string.Empty, @"github\.com\/(\w+)\/(\w+)");
+    var baseUrl = match.Success ? @$"https://gist.githubusercontent.com/{match.Groups[1].Value}/{match.Groups[2].Value}/raw" : string.Empty;
+    var fileNames = Directory.GetFiles(Path.GetDirectoryName(path), "*.json").Select(f => Path.GetFileNameWithoutExtension(f)).OrderBy(f => f);
+    File.WriteAllText(path, string.Empty);
+    foreach (var group in fileNames.GroupBy(f => f.Substring(0, 1).ToUpper()))
+    {
+        File.AppendAllText(path, Environment.NewLine + $"## {group.Key}" + Environment.NewLine);
+        File.AppendAllText(path, string.Join(Environment.NewLine, group.Select(f => @$"[{f}]({baseUrl}/{f}.json)")) + Environment.NewLine);
     }
 }
