@@ -113,6 +113,11 @@ private void ClearLocationsByCity(string path)
 private void SaveLocationsByCity(string path, string locationsJson)
 {
     var locationsByCity = JsonConvert.DeserializeObject<dynamic[]>(locationsJson)
+        .Select(l =>
+        {
+            l.url = @$"https://qualitrain.net/locations/{l.cityurlslug}/{l.nameurlslug}/";
+            return l;
+        })
         .GroupBy(l => l.cityurlslug)
         .ToDictionary(g => g.Key, g => g.ToList())
         ;
