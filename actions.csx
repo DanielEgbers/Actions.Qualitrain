@@ -1,6 +1,7 @@
 #r "nuget: System.CommandLine, 2.0.0-beta1.20371.2"
 #r "nuget: AngleSharp, 0.14.0"
 #r "nuget: AngleSharp.Js, 0.14.0"
+#r "nuget: Newtonsoft.Json, 12.0.3"
 
 #load "../Actions.Shared/git.csx"
 
@@ -8,26 +9,30 @@
 
 using System.CommandLine;
 using System.CommandLine.Invocation;
+using System.Text.RegularExpressions;
 using AngleSharp;
 using AngleSharp.Dom;
 using AngleSharp.Js;
+using Newtonsoft.Json;
 
 return await InvokeCommandAsync(Args.ToArray());
 
 private async Task<int> InvokeCommandAsync(string[] args)
 {
-    const string LocationsFilePath = "data/locations.json";
+    var dataPath = @"data";
 
     var scrape = new Command("scrape")
     {
         Handler = CommandHandler.Create(async () =>
         {
-            var json = await RequestLocationsJsonAsync();
+            var locationsJson = await RequestLocationsJsonAsync();
 
-            if (json == null)
+            if (locationsJson == null)
                 return;
 
-            File.WriteAllText(LocationsFilePath, json);
+            ClearLocationsByCity(dataPath);
+
+            SaveLocationsByCity(dataPath, locationsJson);
         })
     };
 
@@ -38,14 +43,16 @@ private async Task<int> InvokeCommandAsync(string[] args)
             if (Debugger.IsAttached)
                 return;
 
-            var workingDirectory = Path.GetDirectoryName(LocationsFilePath)!;
-
-            await Git.ConfigUserAsync(workingDirectory, "GitHub Actions", "actions@users.noreply.github.com");
-
-            if (!await Git.CommitAsync(workingDirectory, "update {files}", Path.GetFileName(LocationsFilePath)))
+            if (!(await Git.GetChangesAsync(workingDirectory: dataPath)).Any())
                 return;
 
-            await Git.PushAsync(workingDirectory);
+            await Git.ConfigUserAsync(name: "GitHub Actions", email: "actions@users.noreply.github.com", workingDirectory: dataPath);
+
+            await Git.StageAllAsync(workingDirectory: dataPath);
+
+            await Git.CommitAsync("update", workingDirectory: dataPath);
+
+            await Git.PushAsync(workingDirectory: dataPath);
         })
     };
 
@@ -67,7 +74,7 @@ private async Task<int> InvokeCommandAsync(string[] args)
 private async Task<string?> RequestLocationsJsonAsync()
 {
     const string Url = @"https://qualitrain.net/locations/";
-    const string Script = "JSON.stringify(tx_locations_markers.locations, null, 2)";
+    const string Script = "JSON.stringify(tx_locations_markers.locations)";
 
     using
     (
@@ -91,4 +98,27 @@ private async Task<string?> RequestLocationsJsonAsync()
     }
 
     return null;
+}
+
+private void ClearLocationsByCity(string path)
+{
+    foreach (var jsonFile in  Directory.GetFiles(path, "*.json"))
+    {
+        File.WriteAllText(jsonFile, "[]");
+    }
+}
+
+private void SaveLocationsByCity(string path, string locationsJson)
+{
+    var locationsByCity = JsonConvert.DeserializeObject<dynamic[]>(locationsJson)
+        .GroupBy(l => l.cityurlslug)
+        .ToDictionary(g => g.Key, g => g.ToList())
+        ;
+
+    foreach (var locations in locationsByCity)
+    {
+        var fileName = $"{locations.Key}.json";
+        
+        File.WriteAllText(Path.Combine(path, fileName), JsonConvert.SerializeObject(locations.Value, Formatting.Indented));
+    }
 }
