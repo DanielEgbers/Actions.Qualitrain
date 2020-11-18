@@ -12,6 +12,8 @@ jobs:
     env:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
+      DOTNET_SCRIPT_CACHE_LOCATION: ${{ github.workspace }}/.cache
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
     steps:
     - name: checkout scripts
       uses: actions/checkout@v2
@@ -26,19 +28,32 @@ jobs:
       env:
         DATA_REPO: ${{ secrets.DATA_REPO }}
       run: |-
-        git clone $DATA_REPO data
-    - name: setup
+        git clone --depth 1 $DATA_REPO data
+    - name: restore tools
+      id: restore-tools
+      uses: actions/cache@v2
+      with:
+        key: tools
+        path: .tools
+    - name: install tools
+      if: github.event_name != 'schedule' || steps.restore-tools.outputs.cache-hit != 'true'
       run: |-
-        dotnet tool update --global dotnet-script
-        dotnet script --info
+        dotnet tool update --tool-path .tools dotnet-script
+    - name: restore cache
+      uses: actions/cache@v2
+      with:
+        key: packages-${{ github.sha }}
+        path: |
+          ${{ env.NUGET_PACKAGES }}
+          ${{ env.DOTNET_SCRIPT_CACHE_LOCATION }}
     - name: prepare
       run: |-
-        dotnet script --debug scripts/actions.csx -- --help
+        .tools/dotnet-script --debug scripts/actions.csx -- --help
     - name: scrape
       env:
         DATA_REPO: ${{ secrets.DATA_REPO }}
       run: |-
-        dotnet script scripts/actions.csx scrape
+        .tools/dotnet-script scripts/actions.csx scrape
     - name: push
       run: |-
-        dotnet script scripts/actions.csx push
+        .tools/dotnet-script scripts/actions.csx push
