@@ -42,7 +42,7 @@ private async Task<int> InvokeCommandAsync(string[] args)
     {
         Handler = CommandHandler.Create(async () =>
         {
-            if (Debugger.IsAttached)
+            if (!Git.IsRootDirectory(workingDirectory: dataPath))
                 return;
 
             if (!(await Git.GetChangesAsync(workingDirectory: dataPath)).Any())
